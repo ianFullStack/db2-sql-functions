@@ -1,0 +1,68 @@
+/****************************************************************************/
+/* TITLE:  EDTPRMPRUF                                                       */
+/* DATE.:  11/14/24        Ian Sandoval                                     */
+/* DESC.:  Gather Information Needed to Edit Perm Price Changes             */
+/*                                                                          */
+/*                                                                          */
+/*                                                                          */
+/****************************************************************************/
+/*   Modifications:                                                         */
+/*   NO.     DATE    INIT   DESCRIPTION                                     */
+/****************************************************************************/
+
+Create or Replace Function EditPermPriceChangesInfo (REC_ID DECIMAL(9))
+	Returns TABLE ( MESSAGE CHAR(5000))
+	Language SQL
+	Specific EditPermPriceChangesInfo
+	External Action
+	Modifies SQL Data
+	Called on Null Input
+	Disallow Parallel
+BEGIN
+DECLARE MESSAGE     CHAR(5000);
+
+select json_object( 'SHRTSKU' value SHRTSKU,
+ 'NEWPRCE' value NEWPRCE,
+ 'CHGPRCD' value  VARCHAR_FORMAT(CHGPRCD, 'MM/DD/YYYY') ,
+ 'LOCSPEC' value LOCSPEC,
+ 'RLSTCHG' value RLSTCHG,
+ 'DEPT' value DEPT,
+ 'CLAS' value CLAS,
+ 'DESC' value trim(DESC),
+ 'VD#1' value VD#1,
+ 'AVUC' value AVUC,
+ 'SKUST' value SKUST,
+ 'EXTR23' value EXTR23,
+ 'PRCE' value PRCE,
+ 'Current GM$' value PRCE - AVUC,
+ 'Current GM%' value ((PRCE - AVUC)/PRCE)*100 ,
+ 'New GM$' value NEWPRCE - AVUC  ,
+ 'NEWPRCE' value NEWPRCE,
+ 'New GM%' value
+ case when NEWPRCE <> 0 then CAST((NEWPRCE - AVUC)
+ / NEWPRCE AS DECIMAL(4, 4)) else 1 end,
+
+
+ 'PRCPDTL' value (select json_arrayagg(
+                              json_object( 'NEWSTAT' value  NEWSTAT ,
+                                         'LOC' value  LOC)
+                                          )
+                from PRCPDTL  a
+                where a.IDENT = RECDID group by IDENT) format json
+                    absent on null)
+into MESSAGE
+
+from PRCHGTL
+join ItemTable on SHRTSKU = KWRD
+join ItemDetailTable on SHRTSKU = SKU#
+join itemLocationTable on CMP# = '02' and LOC# = 52 and SHRTSKU = SKU#
+where RECDID = REC_ID
+;
+RETURN VALUES
+MESSAGE
+;
+
+end ;
+
+LABEL ON SPECIFIC FUNCTION EditPermPriceChangesInfo
+        IS 'Gather Info to Edit Perm Price Changes '; 
